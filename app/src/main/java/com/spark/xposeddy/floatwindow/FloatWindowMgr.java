@@ -23,7 +23,10 @@ public class FloatWindowMgr {
     public static final String LOG_SAMPLE = "log_sample";
     public static final String LOG_COMMENT_UPLOAD = "log_comment_upload";
     public static final String LOG_LIVE_UPLOAD = "log_live_upload";
-    public static final String LOG_DY_DEVICE_ID = "log_dy_device_id";
+    public static final String LOG_NEW_PHONE = "log_new_phone";
+    public static final String LOG_NEW_PHONE_RISK = "log_new_phone_risk";
+    public static final String LOG_NEW_PHONE_TIME = "log_new_phone_time";
+
     private static final int REQUEST_CODE = 1001;
     private static FloatWindowMgr mInstance;
 
@@ -106,6 +109,10 @@ public class FloatWindowMgr {
         mLogFloatWindow.showWindow();
     }
 
+    public boolean isShowLog() {
+        return mLogFloatWindow.isShow();
+    }
+
     public void closeFloatWindow() {
         mMenuFloatWindow.hideWindow();
         mLogFloatWindow.hideWindow();
@@ -113,7 +120,7 @@ public class FloatWindowMgr {
 
     public void updateLogData(JSONObject data) {
         // if (mLogFloatWindow.isShow()) {
-            mLogFloatWindow.onDataUpdate(data);
+        mLogFloatWindow.onDataUpdate(data);
         // }
     }
 }

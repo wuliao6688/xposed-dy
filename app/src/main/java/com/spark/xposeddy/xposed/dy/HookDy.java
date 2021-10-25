@@ -4,15 +4,20 @@ import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
+import android.view.View;
+import android.widget.TextView;
 
 import com.spark.xposeddy.floatwindow.FloatWindowMgr;
 import com.spark.xposeddy.repository.bean.CommentBean;
+import com.spark.xposeddy.util.AndroidUtil;
 import com.spark.xposeddy.util.JSONObjectPack;
 import com.spark.xposeddy.util.TraceUtil;
+import com.spark.xposeddy.xposed.HookMain;
 import com.spark.xposeddy.xposed.receiver.AppBroadcast;
 import com.spark.xposeddy.xposed.receiver.XpBroadcast;
 import com.spark.xposeddy.xposed.dy.api.DyApi;
@@ -45,11 +50,12 @@ public class HookDy {
             mLiveMonitor = new LiveMonitor(context);
             hookDeviceId(appClassLoader, context);
             hookMainPage(appClassLoader, context);
-            // hookDialog(appClassLoader, context);
+            hookDialog(appClassLoader, context);
             hookLive(appClassLoader, context);
             hookNet(appClassLoader, context);
             AppReceiver.registerReceiver(context, mDyApi, mDyApiRes, mLiveMonitor);
-            XpBroadcast.sendFloatWindowLog(context, JSONObjectPack.getJsonObject(FloatWindowMgr.LOG_STATUS, "1.0.6 hook 成功"));
+            // 验证hook生效没有，只能人工写数值，不能AndroidUtil.getVersionCode(mContext, packageName)
+            XpBroadcast.sendFloatWindowLog(context, JSONObjectPack.getJsonObject(FloatWindowMgr.LOG_STATUS, "1.0.11 hook 成功"));
         } catch (Exception e) {
             TraceUtil.xe("hookDy err: " + e.getMessage());
         }
@@ -68,6 +74,8 @@ public class HookDy {
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 super.afterHookedMethod(param);
                 TraceUtil.e("MainActivity onCreate");
+                AndroidUtil.getApkFirstInstallTime(context, HookMain.PACKAGE_ID_NORM);
+                AndroidUtil.getApkLastUpdateTime(context, HookMain.PACKAGE_ID_NORM);
                 mainActivityObj = (Activity) param.thisObject;
             }
         });
@@ -85,9 +93,30 @@ public class HookDy {
                     if (bundle != null) {
                         monitor = bundle.getBoolean("monitor");
                         if (monitor) {
-                            mainHandler.postDelayed(() -> {
-                                AppBroadcast.sendCommentMonitor(mainActivityObj, true);
-                            }, 4000);
+                            // 如果不需要上滑查看更多视频，直接启动评论监听
+                            if (!isSwipeUp(mainActivityObj)) {
+                                mainHandler.postDelayed(() -> {
+                                    AppBroadcast.sendCommentMonitor(mainActivityObj, true);
+                                }, 8000);
+                            } else {
+                                // 上滑查看更多视频
+                                mainHandler.postDelayed(() -> {
+                                    int text = mainActivityObj.getResources().getIdentifier("ktt", "id", mainActivityObj.getPackageName());
+                                    TextView txt = mainActivityObj.findViewById(text);
+                                    if (txt != null) {
+                                        if (txt.getVisibility() == View.VISIBLE) {
+                                            TraceUtil.d("txt is visible, txt = " + txt.getText());
+                                            XpBroadcast.sendSwipeUpCmd(mainActivityObj, true);
+                                        } else {
+                                            TraceUtil.d("txt is gone");
+                                            AppBroadcast.sendCommentMonitor(mainActivityObj, true);
+                                        }
+                                    } else {
+                                        TraceUtil.d("txt is null");
+                                        AppBroadcast.sendCommentMonitor(mainActivityObj, true);
+                                    }
+                                }, 8000);
+                            }
                         }
                     }
                 }
@@ -124,41 +153,62 @@ public class HookDy {
     }
 
     /**
-     * 屏蔽dy提示框、升级框
+     * 屏蔽 dy 提示框
+     * 个人信息保护指引、青少年模式、升级弹框、上滑查看更多视频
      *
      * @param classLoader
      * @param context
      */
     private void hookDialog(final ClassLoader classLoader, final Context context) {
         TraceUtil.e("hookDialog");
-        Class RemindCls = XposedHelpers.findClass("com.ss.android.ugc.aweme.main.cz", classLoader);
+        // 屏蔽dy个人信息保护指引
+        Class RemindCls = XposedHelpers.findClass("com.ss.android.ugc.aweme.main.cy", classLoader);
         XposedHelpers.findAndHookMethod(RemindCls, "onCreate", Bundle.class, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 super.afterHookedMethod(param);
-                TraceUtil.e("remind dialog onCreate");
+                TraceUtil.e("个人信息保护指引 dialog onCreate");
                 final Dialog dialog = (Dialog) param.thisObject;
                 mainHandler.post(new Runnable() {
                     @Override
                     public void run() {
-                        int confirmId = dialog.getContext().getResources().getIdentifier("aji", "id", dialog.getContext().getPackageName());
+                        int confirmId = dialog.getContext().getResources().getIdentifier("beo", "id", dialog.getContext().getPackageName());
                         dialog.findViewById(confirmId).performClick();
                     }
                 });
             }
         });
 
-        Class UpdateXCls = XposedHelpers.findClass("com.ss.android.ugc.aweme.update.x", classLoader);
-        XposedHelpers.findAndHookMethod(UpdateXCls, "onCreate", Bundle.class, new XC_MethodHook() {
+        // 屏蔽dy青少年模式
+        Class NewTeenGuideForNormalDialogCls = XposedHelpers.findClass("com.ss.android.ugc.aweme.compliance.protection.teenmode.ui.dialog.NewTeenGuideForNormalDialog", classLoader);
+        XposedHelpers.findAndHookMethod(NewTeenGuideForNormalDialogCls, "onCreate", Bundle.class, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 super.afterHookedMethod(param);
-                TraceUtil.e("update dialog onCreate");
+                TraceUtil.e("青少年模式 dialog onCreate");
                 final Dialog dialog = (Dialog) param.thisObject;
                 mainHandler.post(new Runnable() {
                     @Override
                     public void run() {
-                        int cancelId = dialog.getContext().getResources().getIdentifier("cx4", "id", dialog.getContext().getPackageName());
+                        int confirmId = dialog.getContext().getResources().getIdentifier("abn", "id", dialog.getContext().getPackageName());
+                        dialog.findViewById(confirmId).performClick();
+                    }
+                });
+            }
+        });
+
+        // 屏蔽dy升级弹框
+        Class UpdateXCls = XposedHelpers.findClass("com.ss.android.ugc.aweme.update.w", classLoader);
+        XposedHelpers.findAndHookMethod(UpdateXCls, "onCreate", Bundle.class, new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                super.afterHookedMethod(param);
+                TraceUtil.e("升级 dialog onCreate");
+                final Dialog dialog = (Dialog) param.thisObject;
+                mainHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        int cancelId = dialog.getContext().getResources().getIdentifier("ep0", "id", dialog.getContext().getPackageName());
                         dialog.findViewById(cancelId).performClick();
                     }
                 });
@@ -288,7 +338,7 @@ public class HookDy {
                         TraceUtil.e("res url = " + url + ", status = " + status);
                         TraceUtil.e("res body = " + body);
                         JSONObject device = new JSONObject(body);
-                        XpBroadcast.sendFloatWindowLog(context, JSONObjectPack.getJsonObject(FloatWindowMgr.LOG_DY_DEVICE_ID, device.optString("device_id")));
+                        TraceUtil.e("res device_id = " + device.optString("device_id"));
                     }
                     if (DyApiRes.isContainsUrl(url)) {
                         mDyApiRes.setResponse(url, body);
@@ -297,6 +347,13 @@ public class HookDy {
 
             }
         });
+    }
+
+    private boolean isSwipeUp(Context context) {
+        SharedPreferences sp = context.getSharedPreferences("MainTabPreferences", Context.MODE_PRIVATE);
+        boolean isSwipeUp = sp.getBoolean("shouldShowSwipeUpGuide1", (Boolean) true);
+        TraceUtil.e("isSwipeUp = " + isSwipeUp);
+        return isSwipeUp;
     }
 }
 

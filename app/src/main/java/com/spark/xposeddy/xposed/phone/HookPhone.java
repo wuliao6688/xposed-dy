@@ -2,6 +2,8 @@ package com.spark.xposeddy.xposed.phone;
 
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.location.Location;
 import android.location.LocationManager;
@@ -20,13 +22,27 @@ import android.util.DisplayMetrics;
 import android.view.Display;
 
 import com.alibaba.fastjson.JSON;
+import com.qiyi.biz.Biz;
+import com.qiyi.xhook.XHook;
 import com.spark.xposeddy.persist.PersistKey;
+import com.spark.xposeddy.persist.impl.PersistFactory;
+import com.spark.xposeddy.util.MD5Util;
+import com.spark.xposeddy.util.ShellFileUtil;
 import com.spark.xposeddy.util.TraceUtil;
+import com.spark.xposeddy.util.UniqueCodeUtil;
+import com.spark.xposeddy.xposed.HookMain;
 import com.spark.xposeddy.xposed.provider.PropertyProvider;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.File;
+import java.io.FileInputStream;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -37,18 +53,61 @@ import de.robv.android.xposed.XposedHelpers;
  */
 public class HookPhone {
 
+    private static final String HOOKFILE_MD5 = "hookfile_md5";
+
+    /**
+     * 注入 hookNative 的 so
+     * 需要在插件APP上执行
+     *
+     * @param ctx
+     */
+    public static void injectLibrary(Context ctx) {
+        injectLibrary(ctx, HookMain.PACKAGE_ID_NORM);
+        injectLibrary(ctx, HookMain.PACKAGE_ID_DEVICEINFO);
+    }
+
+    private static void injectLibrary(Context ctx, String packageName) {
+        try {
+            TraceUtil.e("injectLibrary " + packageName);
+            File appPath = new File(ctx.getPackageManager().getApplicationInfo(ctx.getPackageName(), 0).sourceDir);
+            File srcHookFile = new File(appPath.getParent() + "/lib/arm/libxhook.so");
+            String hookPath = ctx.getFilesDir().getParent() + "/lib/libxhook.so";
+            File hookFile = new File(hookPath.replace(ctx.getPackageName(), packageName));
+
+            String srcHookFileMd5 = MD5Util.GetFileMD5Code(srcHookFile);
+            String oldHookFileMd5 = (String) PersistFactory.getInstance(ctx).readData(HOOKFILE_MD5, "");
+            TraceUtil.e("md5: newHookFileMd5 = " + srcHookFileMd5 + ", oldHookFileMd5 = " + oldHookFileMd5);
+            if (!TextUtils.isEmpty(srcHookFileMd5)) {
+                if (ShellFileUtil.exists(hookFile)) {
+                    if (!srcHookFileMd5.equals(oldHookFileMd5)) {
+                        PersistFactory.getInstance(ctx).writeData(HOOKFILE_MD5, srcHookFileMd5);
+                        ShellFileUtil.copyFile(srcHookFile, hookFile);
+                    }
+                } else {
+                    PersistFactory.getInstance(ctx).writeData(HOOKFILE_MD5, srcHookFileMd5);
+                    ShellFileUtil.copyFile(srcHookFile, hookFile);
+                }
+            }
+        } catch (PackageManager.NameNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
     public void hook(ClassLoader appClassLoader, Context context) {
         try {
             String str = PropertyProvider.readData(context, PersistKey.PHONE_INFO);
             PhoneInfo info = JSON.parseObject(str, PhoneInfo.class);
             if (info != null && !TextUtils.isEmpty(info.getGetDeviceId()) && !TextUtils.isEmpty(info.getAndroidId())) {
                 hookPhone(appClassLoader, context, info);
+                hookNativePhone(context, str);
             } else {
                 TraceUtil.xe("hookPhone err: info is null");
             }
 
         } catch (UnknownHostException e) {
-            TraceUtil.xe("hookPhone err: " + e.getMessage());
+            TraceUtil.xe("hookPhone UnknownHostException: " + e.getMessage());
+        } catch (JSONException e) {
+            TraceUtil.xe("hookPhone JSONException: " + e.getMessage());
         }
     }
 
@@ -122,6 +181,18 @@ public class HookPhone {
         setMethodRes(NetworkInfo.class, "getTypeName", phoneInfo.getGetTypeName());
 
         setMethodRes(WifiInfo.class, "getMacAddress", phoneInfo.getGetMacAddress());
+        setMethodRes(NetworkInterface.class, "getHardwareAddress", UniqueCodeUtil.macStrToByte(phoneInfo.getGetMacAddress()));
+        XposedHelpers.findAndHookConstructor(FileInputStream.class, String.class, new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                super.beforeHookedMethod(param);
+                String path = (String) param.args[0];
+                if (!TextUtils.isEmpty(path) && path.contains("/sys/class/net/")) {
+                    TraceUtil.e("FileInputStream path = " + path);
+                }
+            }
+        });
+
         setMethodRes(WifiInfo.class, "getBSSID", phoneInfo.getGetBSSID());
         setMethodRes(WifiInfo.class, "getIpAddress", Integer.parseInt(phoneInfo.getGetIpAddress()));
         setMethodRes(WifiInfo.class, "getNetworkId", Integer.parseInt(phoneInfo.getGetNetworkId()));
@@ -192,6 +263,35 @@ public class HookPhone {
             setMethodRes(Location.class, "getLatitude", Double.parseDouble(phoneInfo.getGetLatitude()));
             setMethodRes(Location.class, "getLongitude", Double.parseDouble(phoneInfo.getGetLongitude()));
         }
+
+        XposedHelpers.findAndHookMethod("android.app.ApplicationPackageManager", classLoader, "getPackageInfo", String.class, int.class, new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                super.afterHookedMethod(param);
+                String packName = (String) param.args[0];
+                if (!TextUtils.isEmpty(packName) && packName.equals(context.getPackageName())) {
+                    PackageInfo info = (PackageInfo) param.getResult();
+                    if (info != null) {
+                        String str = PropertyProvider.readData(context, PersistKey.PHONE_INFO_TICK);
+                        if (!TextUtils.isEmpty(str)) {
+                            long time = Long.parseLong(str);
+                            info.firstInstallTime = time;
+                            info.lastUpdateTime = time;
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    private void hookNativePhone(Context context, String phoneInfo) throws JSONException {
+        Biz.getInstance().init(context);
+        if (Biz.getInstance().isInited()) {
+            TraceUtil.e("Biz init success");
+            Biz.getInstance().start(new JSONObject(phoneInfo));
+        } else {
+            TraceUtil.e("Biz init error");
+        }
     }
 
     private boolean isNullStr(String value) {
@@ -224,7 +324,12 @@ public class HookPhone {
             return;
         }
 
-        TraceUtil.d("hookPhone: " + method + " = " + value);
+        if (value instanceof byte[]) {
+            TraceUtil.d("hookPhone: " + method + " = " + Arrays.toString((byte[]) value));
+        } else {
+            TraceUtil.d("hookPhone: " + method + " = " + value);
+        }
+
         XposedBridge.hookAllMethods(cls, method, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {

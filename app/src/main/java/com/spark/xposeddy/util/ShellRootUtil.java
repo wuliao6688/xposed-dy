@@ -1,6 +1,9 @@
 package com.spark.xposeddy.util;
 
+import android.app.Activity;
+import android.app.AlertDialog;
 import android.os.Build;
+import android.view.WindowManager;
 
 import java.io.File;
 
@@ -10,12 +13,37 @@ public class ShellRootUtil {
         throw new UnsupportedOperationException("cannot be instantiated");
     }
 
+    public static boolean requestRootPermission(Activity act) {
+        if (ShellRootUtil.isRoot()) {
+            if (ShellRootUtil.isRootAuth()) {
+                return true;
+            } else {
+                askForDrawOverlay(act, "APP需要root权限，请授权root权限！");
+            }
+        } else {
+            askForDrawOverlay(act, "APP需要root权限，请root手机！");
+        }
+        return false;
+    }
+
+    private static void askForDrawOverlay(Activity act, String tip) {
+        AlertDialog alertDialog = new AlertDialog.Builder(act)
+                .setTitle("提示")
+                .setMessage(tip)
+                .setNeutralButton("好的", (dialog, which) -> dialog.dismiss())
+                .create();
+        alertDialog.getWindow().setFlags(
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
+        alertDialog.show();
+    }
+
     /**
      * 检查系统是否root
      *
      * @return
      */
-    public static boolean isRoot() {
+    private static boolean isRoot() {
         if (checkSystemDebuggable()) {
             TraceUtil.e("checkSystemDebuggable true");
             return true;
@@ -38,7 +66,7 @@ public class ShellRootUtil {
      *
      * @return
      */
-    public static boolean isRootAuth() {
+    private static boolean isRootAuth() {
         return Shell.execCommand("echo root", true).result == 0;
     }
 

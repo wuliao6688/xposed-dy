@@ -49,70 +49,74 @@ public class DyApiRes {
         // return url.contains(fGetProfileTag) || url.contains(fGetAwemeListTag) || url.contains(fGetCommentListTag);
     }
 
-    public void setResponse(String url, String body) throws JSONException {
+    public void setResponse(String url, String body) {
         String callUrl = mCallbackQueueMgr.matchUrl(url);
         ApiCallback callback = mCallbackQueueMgr.getCallback(callUrl);
         if (callback != null) {
-            JSONObject jsonBody = new JSONObject(body);
-            if (url.contains(fGetAwemeListTag)) {
-                JSONArray arr = jsonBody.optJSONArray("aweme_list");
-                if (arr != null && arr.length() > 0) {
-                    StringBuilder sb = new StringBuilder();
-                    for (int i = 0; i < arr.length(); i++) {
-                        JSONObject aweme = arr.optJSONObject(i);
-                        String aweme_id = aweme.optString("aweme_id");
-                        String desc = aweme.optString("desc");
-                        sb.append(aweme_id).append(";");
+            try {
+                JSONObject jsonBody = new JSONObject(body);
+                if (url.contains(fGetAwemeListTag)) {
+                    JSONArray arr = jsonBody.optJSONArray("aweme_list");
+                    if (arr != null && arr.length() > 0) {
+                        StringBuilder sb = new StringBuilder();
+                        for (int i = 0; i < arr.length(); i++) {
+                            JSONObject aweme = arr.optJSONObject(i);
+                            String aweme_id = aweme.optString("aweme_id");
+                            String desc = aweme.optString("desc");
+                            sb.append(aweme_id).append(";");
+                        }
+                        sb.deleteCharAt(sb.length() - 1);
+                        TraceUtil.e("getAwemeList success, list = " + sb.toString());
+                        callback.setResult(Result.ok(sb.toString()));
+                        mCallbackQueueMgr.removeCallback(callUrl);
+                        return;
                     }
-                    sb.deleteCharAt(sb.length() - 1);
-                    TraceUtil.e("getAwemeList success, list = " + sb.toString());
-                    callback.setResult(Result.ok(sb.toString()));
+                    TraceUtil.e("getAwemeList parse error, url = " + callUrl);
+                    callback.setResult(Result.error(Result.ResultCode.PARSE_ERR, "getAwemeList parse error, url = " + callUrl));
                     mCallbackQueueMgr.removeCallback(callUrl);
-                    return;
-                }
-                TraceUtil.e("getAwemeList parse error, url = " + callUrl);
-                callback.setResult(Result.error(Result.ResultCode.PARSE_ERR, "getAwemeList parse error, url = " + callUrl));
-                mCallbackQueueMgr.removeCallback(callUrl);
-            } else if (url.contains(fGetCommentListTag)) {
-                JSONArray arr = jsonBody.optJSONArray("comments");
-                if (arr != null && arr.length() > 0) {
-                    List<CommentBean> list = new ArrayList<>();
-                    for (int i = 0; i < arr.length(); i++) {
-                        JSONObject comment = arr.optJSONObject(i);
-                        String cid = comment.optString("cid");
-                        long create_time = comment.optLong("create_time");
-                        String text = comment.optString("text");
-                        String aweme_id = comment.optString("aweme_id");
+                } else if (url.contains(fGetCommentListTag)) {
+                    JSONArray arr = jsonBody.optJSONArray("comments");
+                    if (arr != null && arr.length() > 0) {
+                        List<CommentBean> list = new ArrayList<>();
+                        for (int i = 0; i < arr.length(); i++) {
+                            JSONObject comment = arr.optJSONObject(i);
+                            String cid = comment.optString("cid");
+                            long create_time = comment.optLong("create_time");
+                            String text = comment.optString("text");
+                            String aweme_id = comment.optString("aweme_id");
 
-                        JSONObject user = comment.optJSONObject("user");
-                        String uid = user.optString("uid");
-                        String short_id = user.optString("short_id");
-                        String nickname = user.optString("nickname");
-                        String gender = user.optString("gender");
-                        String birthday = user.optString("birthday");
-                        String aweme_count = user.optString("aweme_count");
-                        String unique_id = user.optString("unique_id");
-                        birthday = TextUtils.isEmpty(birthday) ? "0" : birthday.split("-")[0];
-                        short_id = TextUtils.isEmpty(unique_id) ? short_id : unique_id;
+                            JSONObject user = comment.optJSONObject("user");
+                            String uid = user.optString("uid");
+                            String short_id = user.optString("short_id");
+                            String nickname = user.optString("nickname");
+                            String gender = user.optString("gender");
+                            String birthday = user.optString("birthday");
+                            String aweme_count = user.optString("aweme_count");
+                            String unique_id = user.optString("unique_id");
+                            birthday = TextUtils.isEmpty(birthday) ? "0" : birthday.split("-")[0];
+                            short_id = TextUtils.isEmpty(unique_id) ? short_id : unique_id;
 
-                        CommentBean bean = new CommentBean();
-                        bean.setAwemeId(aweme_id).setUid(uid).setTypeCode("")
-                                .setAcc(short_id).setNick(nickname).setSex(gender)
-                                .setAge(birthday).setWorks_num(aweme_count).setContentID(cid)
-                                .setContent(text).setRelevant(aweme_id).setCreate_time(create_time)
-                                .setSource("2");
-                        list.add(bean);
+                            CommentBean bean = new CommentBean();
+                            bean.setAwemeId(aweme_id).setUid(uid).setTypeCode("")
+                                    .setAcc(short_id).setNick(nickname).setSex(gender)
+                                    .setAge(birthday).setWorks_num(aweme_count).setContentID(cid)
+                                    .setContent(text).setRelevant(aweme_id).setCreate_time(create_time)
+                                    .setSource("2");
+                            list.add(bean);
+                        }
+
+                        String listJson = JSON.toJSONString(list);
+                        TraceUtil.d("getCommentList success, size = " + list.size() + ", data = " + listJson);
+                        callback.setResult(Result.ok(listJson));
+                        mCallbackQueueMgr.removeCallback(callUrl);
+                        return;
                     }
-
-                    String listJson = JSON.toJSONString(list);
-                    TraceUtil.d("getCommentList success, size = " + list.size() + ", data = " + listJson);
-                    callback.setResult(Result.ok(listJson));
+                    TraceUtil.e("getCommentList parse error, url = " + callUrl);
+                    callback.setResult(Result.error(Result.ResultCode.PARSE_ERR, "getCommentList parse error, url = " + callUrl));
                     mCallbackQueueMgr.removeCallback(callUrl);
-                    return;
                 }
-                TraceUtil.e("getCommentList parse error, url = " + callUrl);
-                callback.setResult(Result.error(Result.ResultCode.PARSE_ERR, "getCommentList parse error, url = " + callUrl));
-                mCallbackQueueMgr.removeCallback(callUrl);
+            } catch (JSONException e) {
+                e.printStackTrace();
             }
         } else {
             TraceUtil.e("callback is null, url = " + url);

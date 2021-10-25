@@ -49,19 +49,23 @@ public class DyApi {
             String url = "https://aweme.snssdk.com/aweme/v1/user/profile/other/?user_id=" + userId + "&address_book_access=2&from=0&source=UserProfileFragment_initUserData&publish_video_strategy_type=2&user_avatar_shrink=188_188&user_cover_shrink=750_422";
             Object profileApi = XposedHelpers.newInstance(ProfileApiCall, new Class[]{String.class, String.class}, url, null);
             Object res = XposedHelpers.callMethod(profileApi, "call");
-            String body = JSON.toJSONString(res);
-            JSONObject user = new JSONObject(body).optJSONObject("user");
-            if (user != null) {
-                String nickname = user.optString("nickname");
-                String short_id = user.optString("shortId");
-                String unique_id = user.optString("uniqueId");
-                String uid = user.optString("uid");
-                String sec_uid = user.optString("secUid");
-                TraceUtil.e("getProfileByUserId res success, nickname = " + nickname + ", short_id = " + short_id + ", unique_id = " + unique_id + ", uid = " + uid + ", sec_uid = " + sec_uid);
-                return Result.ok(sec_uid);
-            } else {
-                TraceUtil.e("getProfileByUserId res data is null");
+            if (res != null) {
+                String body = JSON.toJSONString(res);
+                if (!TextUtils.isEmpty(body)) {
+                    JSONObject user = new JSONObject(body).optJSONObject("user");
+                    if (user != null) {
+                        String nickname = user.optString("nickname");
+                        String short_id = user.optString("shortId");
+                        String unique_id = user.optString("uniqueId");
+                        String uid = user.optString("uid");
+                        String sec_uid = user.optString("secUid");
+                        TraceUtil.e("getProfileByUserId res success, nickname = " + nickname + ", short_id = " + short_id + ", unique_id = " + unique_id + ", uid = " + uid + ", sec_uid = " + sec_uid);
+                        return Result.ok(sec_uid);
+                    }
+                }
             }
+
+            TraceUtil.e("getProfileByUserId res data is null");
         } catch (Exception e) {
             TraceUtil.e("getProfileByUserId res exception: " + e.getMessage() + ", userId = " + userId);
         }

@@ -64,7 +64,7 @@
                 android:layout_height="40dp"
                 android:layout_below="@id/edit_type"
                 android:gravity="center_vertical"
-                android:text="评论前N页" />
+                android:text="采集评论前N页：" />
 
             <EditText
                 android:id="@+id/edit_comment_page"
@@ -78,21 +78,23 @@
                 android:layout_height="40dp"
                 android:layout_below="@id/edit_comment_page"
                 android:gravity="center_vertical"
-                android:text="达人前N条" />
+                android:text="采集达人前N条："
+                android:visibility="gone" />
 
             <EditText
                 android:id="@+id/edit_video_count"
                 android:layout_width="match_parent"
                 android:layout_height="40dp"
                 android:layout_below="@id/edit_comment_page"
-                android:layout_toRightOf="@id/left_label" />
+                android:layout_toRightOf="@id/left_label"
+                android:visibility="gone" />
 
             <TextView
                 android:layout_width="110dp"
                 android:layout_height="40dp"
                 android:layout_below="@id/edit_video_count"
                 android:gravity="center_vertical"
-                android:text="采集时间差：s" />
+                android:text="采集最近N秒：" />
 
             <EditText
                 android:id="@+id/edit_sample_diff"
@@ -106,10 +108,10 @@
                 android:layout_height="40dp"
                 android:layout_below="@id/edit_sample_diff"
                 android:gravity="center_vertical"
-                android:text="执行间隔：s" />
+                android:text="评论线程数：" />
 
             <EditText
-                android:id="@+id/edit_interval_time"
+                android:id="@+id/edit_comment_thread_num"
                 android:layout_width="match_parent"
                 android:layout_height="40dp"
                 android:layout_below="@id/edit_sample_diff"
@@ -118,31 +120,77 @@
             <TextView
                 android:layout_width="110dp"
                 android:layout_height="40dp"
-                android:layout_below="@id/edit_interval_time"
+                android:layout_below="@id/edit_comment_thread_num"
                 android:gravity="center_vertical"
-                android:text="拉取小间隔：ms" />
+                android:text="评论小间隔：ms" />
+
+            <EditText
+                android:id="@+id/edit_small_interval_time"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_below="@id/edit_comment_thread_num"
+                android:layout_toRightOf="@id/left_label" />
+
+            <TextView
+                android:layout_width="110dp"
+                android:layout_height="40dp"
+                android:layout_below="@id/edit_small_interval_time"
+                android:gravity="center_vertical"
+                android:text="评论大间隔：ms" />
+
+            <EditText
+                android:id="@+id/edit_large_interval_time"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_below="@id/edit_small_interval_time"
+                android:layout_toRightOf="@id/left_label" />
+
+            <TextView
+                android:layout_width="110dp"
+                android:layout_height="40dp"
+                android:layout_below="@id/edit_large_interval_time"
+                android:gravity="center_vertical"
+                android:text="视频小间隔：ms"
+                android:visibility="gone" />
 
             <EditText
                 android:id="@+id/edit_aweme_small_interval"
                 android:layout_width="match_parent"
                 android:layout_height="40dp"
-                android:layout_below="@id/edit_interval_time"
-                android:layout_toRightOf="@id/left_label" />
+                android:layout_below="@id/edit_large_interval_time"
+                android:layout_toRightOf="@id/left_label"
+                android:visibility="gone" />
 
             <TextView
                 android:layout_width="110dp"
                 android:layout_height="40dp"
                 android:layout_below="@id/edit_aweme_small_interval"
                 android:gravity="center_vertical"
-                android:text="拉取大间隔：ms" />
+                android:text="视频大间隔：ms"
+                android:visibility="gone" />
 
             <EditText
                 android:id="@+id/edit_aweme_large_interval"
                 android:layout_width="match_parent"
                 android:layout_height="40dp"
                 android:layout_below="@id/edit_aweme_small_interval"
+                android:layout_toRightOf="@id/left_label"
+                android:visibility="gone" />
+
+            <TextView
+                android:layout_width="110dp"
+                android:layout_height="40dp"
+                android:layout_below="@id/edit_aweme_large_interval"
+                android:gravity="center_vertical"
+                android:text="一键新机间隔：s" />
+
+            <EditText
+                android:id="@+id/edit_new_phone_interval"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_below="@id/edit_aweme_large_interval"
                 android:layout_toRightOf="@id/left_label" />
-            
+
         </RelativeLayout>
 
         <Button

@@ -9,6 +9,11 @@ import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.net.NetworkInterface;
+import java.util.Collections;
 import java.util.UUID;
 
 public class UniqueCodeUtil {
@@ -131,6 +136,96 @@ public class UniqueCodeUtil {
 
         Log.w("getAutoUniqueID", uniqueID);
         return uniqueID;
+    }
+
+    public static String getMacAddress(Context context) {
+        String mac = getMacByApi(context);
+        String wlan0 = getFileText("/sys/class/net/wlan0/address");
+        TraceUtil.e("mac wlan0 = " + wlan0);
+        if (TextUtils.isEmpty(mac) && !TextUtils.isEmpty(wlan0)) {
+            mac = wlan0;
+        }
+
+        String eth0 = getFileText("/sys/class/net/eth0/address");
+        TraceUtil.e("mac eth0 = " + eth0);
+        if (TextUtils.isEmpty(mac) && !TextUtils.isEmpty(eth0)) {
+            mac = eth0;
+        }
+
+        String p2p0 = getFileText("/sys/class/net/p2p0/address");
+        TraceUtil.e("mac p2p0 = " + p2p0);
+        if (TextUtils.isEmpty(mac) && !TextUtils.isEmpty(p2p0)) {
+            mac = p2p0;
+        }
+
+        TraceUtil.e("mac result = " + mac);
+        return mac;
+    }
+
+    private static String getMacByApi(Context context) {
+        String macAddress = ((WifiManager) context.getSystemService(Context.WIFI_SERVICE)).getConnectionInfo().getMacAddress();
+        TraceUtil.e("mac getMacAddress = " + macAddress);
+
+        try {
+            String str = "";
+            for (NetworkInterface network : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                if (network.getName().equalsIgnoreCase("wlan0")) {
+                    byte[] hardwareAddress = network.getHardwareAddress();
+                    if (hardwareAddress != null) {
+                        StringBuilder sb = new StringBuilder();
+                        int length = hardwareAddress.length;
+                        for (int i = 0; i < length; i++) {
+                            sb.append(String.format("%02X:", new Object[]{Byte.valueOf(hardwareAddress[i])}));
+                        }
+                        if (sb.length() > 0) {
+                            sb.deleteCharAt(sb.length() - 1);
+                        }
+                        str = sb.toString().toLowerCase();
+                    }
+                }
+            }
+            TraceUtil.e("mac getHardwareAddress = " + str);
+            return str;
+        } catch (Exception e) {
+            return macAddress != null ? macAddress.toLowerCase() : macAddress;
+        }
+    }
+
+    private static String getFileText(String str) {
+        StringBuffer stringBuffer = new StringBuffer(1000);
+        try {
+            BufferedReader bufferedReader = new BufferedReader(new FileReader(str));
+            char[] cArr = new char[1024];
+            while (true) {
+                int read = bufferedReader.read(cArr);
+                if (read != -1) {
+                    stringBuffer.append(String.valueOf(cArr, 0, read));
+                } else {
+                    bufferedReader.close();
+                    return stringBuffer.toString().toLowerCase().substring(0, 17);
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return "";
+    }
+
+    /**
+     * @param mac: b4:ef:fa:af:5a:b7
+     * @return [-76, -17, -6, -81, 90, -73]
+     */
+    public static byte[] macStrToByte(String mac) {
+        String[] items = mac.split(":");
+        if (items.length != 6) {
+            return null;
+        }
+
+        byte[] byt = new byte[6];
+        for (int i = 0; i < items.length; i++) {
+            byt[i] = ((byte) Integer.parseInt(items[i], 16));
+        }
+        return byt;
     }
 
 }

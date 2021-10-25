@@ -14,6 +14,19 @@ public class ShellUtil {
         return Shell.execCommand("am force-stop " + packageName, true).result == 0;
     }
 
+    /**
+     * 飞行模式，飞行模式不会关闭wifi，需要再关闭wifi
+     *
+     * @param enable
+     * @return
+     */
+    public static boolean setAirPlaneMode(boolean enable) {
+        int mode = enable ? 1 : 0;
+        String cmd = "settings put global airplane_mode_on " + mode;
+        String wifiCmd = "am broadcast -a android.intent.action.AIRPLANE_MODE --ez state " + enable;
+        return ((Shell.execCommand(cmd, true).result == 0) && (Shell.execCommand(wifiCmd, true).result == 0));
+    }
+
     public static boolean openSELinux() {
         if (Shell.execCommand("setenforce 1", true).result == 0) {
             if (isSELinux()) {

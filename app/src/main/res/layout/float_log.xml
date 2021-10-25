@@ -15,6 +15,13 @@
         android:orientation="vertical"
         android:padding="10dp">
 
+        <ImageView
+            android:id="@+id/img_close"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:layout_gravity="right"
+            android:src="@drawable/ic_close" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -32,19 +39,11 @@
                 android:layout_height="wrap_content"
                 android:text="直播监听" />
 
-            <View
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1" />
-
-
-            <ImageView
-                android:id="@+id/img_close"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
-                android:layout_gravity="right"
-                android:src="@drawable/ic_close" />
-
+            <Switch
+                android:id="@+id/sw_airplane"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="飞行" />
         </LinearLayout>
 
         <LinearLayout
@@ -129,13 +128,29 @@
                     android:layout_height="wrap_content"
                     android:layout_below="@id/txt_device_num"
                     android:paddingBottom="5dp"
+                    android:text="风控/定时：" />
+
+                <TextView
+                    android:id="@+id/txt_risk"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/txt_device_num"
+                    android:layout_toRightOf="@id/txt_left"
+                    android:paddingBottom="5dp"
+                    android:singleLine="true" />
+
+                <TextView
+                    android:layout_width="100dp"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/txt_risk"
+                    android:paddingBottom="5dp"
                     android:text="状态：" />
 
                 <TextView
                     android:id="@+id/txt_status"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_below="@id/txt_device_num"
+                    android:layout_below="@id/txt_risk"
                     android:layout_toRightOf="@id/txt_left"
                     android:paddingBottom="5dp"
                     android:singleLine="true" />
@@ -270,14 +285,6 @@
                     android:layout_toRightOf="@id/txt_left"
                     android:paddingBottom="5dp"
                     android:singleLine="true" />
-
-                <TextView
-                    android:id="@+id/txt_device_info"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_below="@id/text_device_info"
-                    android:paddingBottom="5dp"
-                    android:textSize="12dp" />
 
             </RelativeLayout>
 

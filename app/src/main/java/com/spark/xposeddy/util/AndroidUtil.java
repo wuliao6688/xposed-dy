@@ -7,8 +7,11 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.text.TextUtils;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 
 public class AndroidUtil {
@@ -67,6 +70,42 @@ public class AndroidUtil {
         }
 
         return versionName;
+    }
+
+    public static long getApkFirstInstallTime(Context context, String packageName) {
+        try {
+            PackageManager packageManager = context.getPackageManager();
+            PackageInfo packageInfo = packageManager.getPackageInfo(packageName, 0);
+            try {
+                SimpleDateFormat data = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+                TraceUtil.e("firstInstallTime = " + data.format(new Date(packageInfo.firstInstallTime)));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return packageInfo.firstInstallTime;
+        } catch (PackageManager.NameNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        return 0;
+    }
+
+    public static long getApkLastUpdateTime(Context context, String packageName) {
+        try {
+            PackageManager packageManager = context.getPackageManager();
+            PackageInfo packageInfo = packageManager.getPackageInfo(packageName, 0);
+            try {
+                SimpleDateFormat data = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+                TraceUtil.e("lastUpdateTime = " + data.format(new Date(packageInfo.lastUpdateTime)));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return packageInfo.lastUpdateTime;
+        } catch (PackageManager.NameNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        return 0;
     }
 
     /**

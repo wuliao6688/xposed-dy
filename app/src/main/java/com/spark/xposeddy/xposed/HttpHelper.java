@@ -148,7 +148,43 @@ public class HttpHelper {
             e.printStackTrace();
         }
 
-        TraceUtil.d("http post result:" + result.toString());
+        TraceUtil.d("http get result:" + result.toString());
+        return result;
+    }
+
+    public static String getStr(String url, Map map) {
+        HttpURLConnection urlConnection;
+        String result = "";
+        InputStream inputStream = null;
+
+        try {
+            urlConnection = (HttpURLConnection) new URL(url + map2UrlParam(map)).openConnection();
+            urlConnection.setDoInput(true);
+            urlConnection.setDoOutput(true);
+            urlConnection.setUseCaches(false);
+            urlConnection.setRequestMethod("GET");
+            urlConnection.setConnectTimeout(5000);
+            urlConnection.setRequestProperty("Content-Type", "application/json");
+            urlConnection.connect();
+
+            int code = urlConnection.getResponseCode();
+            TraceUtil.d("get code from response. code is " + code);
+            if (code == 200) {
+                inputStream = urlConnection.getInputStream();
+                result = in2String(inputStream);
+                TraceUtil.d("Response Data is " + result);
+            } else {
+                result = "code = " + code + ", response data error.";
+            }
+
+            if (inputStream != null) {
+                inputStream.close();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        TraceUtil.d("http get result:" + result);
         return result;
     }
 

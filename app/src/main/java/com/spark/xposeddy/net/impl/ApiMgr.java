@@ -107,6 +107,28 @@ class ApiMgr implements IApiMgr {
     }
 
     @Override
+    public boolean getNewPhoneInfo(String deviceNum, @NonNull Callback<String> callback) {
+        mDomain = (String) mPersist.readData(PersistKey.DOMAIN, "");
+
+        JSONObject obj = new JSONObjectPack()
+                .putValue("deviceNum", deviceNum)
+                .getJSONObject();
+        XUtil.postJson(ApiUrl.getNewPhoneInfo(mDomain), null, obj, new ApiCallback(new Callback<Object>() {
+            @Override
+            public void onSuccess(Object data) {
+                callback.onSuccess(data == null ? "" : data.toString());
+            }
+
+            @Override
+            public void onFailure(String errMsg) {
+                callback.onFailure(errMsg);
+            }
+        }));
+
+        return true;
+    }
+
+    @Override
     public boolean getIP(@NonNull Callback<String> callback) {
         XUtil.get("http://pv.sohu.com/cityjson?ie=utf-8", null, new org.xutils.common.Callback.CommonCallback<String>() {
             @Override
@@ -187,15 +209,17 @@ class ApiMgr implements IApiMgr {
         @Override
         public void onError(Throwable ex, boolean isOnCallback) {
             if (ex instanceof HttpException) {
+                TraceUtil.d("api error: " + (ex == null ? REQUEST_ERROR : ((HttpException) ex).getResult()));
                 mCallback.onFailure(ex == null ? REQUEST_ERROR : ((HttpException) ex).getResult());
                 return;
             }
-
+            TraceUtil.d("api error: " + (ex == null ? REQUEST_ERROR : ex.getMessage()));
             mCallback.onFailure(ex == null ? REQUEST_ERROR : ex.getMessage());
         }
 
         @Override
         public void onCancelled(CancelledException cex) {
+            TraceUtil.d("api cancel");
             mCallback.onFailure(REQUEST_CANCEL);
         }
 

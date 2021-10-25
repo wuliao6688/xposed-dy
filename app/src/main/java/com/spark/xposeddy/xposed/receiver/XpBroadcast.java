@@ -47,4 +47,25 @@ public class XpBroadcast {
         intent.putExtra("risk", risk);
         context.sendBroadcast(intent);
     }
+
+    /**
+     * dy发送向上滑动命令
+     *
+     * @param context
+     */
+    public static void sendSwipeUpCmd(Context context, boolean monitor) {
+        Intent intent = new Intent(XpReceiver.RECEIVER_SWIPE_UP_CMD);
+        intent.putExtra("monitor", monitor);
+        context.sendBroadcast(intent);
+    }
+
+    /**
+     * dy发送定时一键新机命令
+     *
+     * @param context
+     */
+    public static void sendNewPhoneTimeCmd(Context context) {
+        Intent intent = new Intent(XpReceiver.RECEIVER_NEW_PHONE_TIME_ACTION);
+        context.sendBroadcast(intent);
+    }
 }

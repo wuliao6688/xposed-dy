@@ -43,8 +43,8 @@ public class AwemeMonitor extends Thread {
         this.profileList = profileList;
         this.mAwemeList = awemeList;
 
-        this.awemeSmallInterval = Integer.parseInt(PropertyProvider.readData(context, PersistKey.AWEME_SMALL_INTERVAL_CNT));
-        this.awemeLargeInterval = Integer.parseInt(PropertyProvider.readData(context, PersistKey.AWEME_LARGE_INTERVAL_CNT));
+        this.awemeSmallInterval = Integer.parseInt(PropertyProvider.readData(context, PersistKey.AWEME_SMALL_INTERVAL));
+        this.awemeLargeInterval = Integer.parseInt(PropertyProvider.readData(context, PersistKey.AWEME_LARGE_INTERVAL));
         TraceUtil.e("AwemeMonitor param: awemeSmallInterval = " + awemeSmallInterval + ", awemeLargeInterval = " + awemeLargeInterval);
     }
 
@@ -74,17 +74,19 @@ public class AwemeMonitor extends Thread {
             Profile profile = profileList.get(i);
             Result res = mDyApiRes.getAwemeListSync(profile.getSecUid(), 0, this.videoCount);
             int code = res.getCode();
-            // 如果连续3次解析错误，接口风控
             if (code == Result.ResultCode.PARSE_ERR) {
-                if (++parseErrCnt > 2) {
-//                        if (runCnt == 3) {
-//                            stopMonitor();
-//                            sendFloatWindowLog(mContext, JSONObjectPack.getJsonObject(FloatWindowMgr.LOG_STATUS, "拉取列表已风控，请切换设备后重试"));
-//                            sendRisk(mContext, ReceiverMain.RISK_AWEME_LIST_SEVERE);
-//                        } else {
-                    XpBroadcast.sendFloatWindowLog(mContext, JSONObjectPack.getJsonObject(FloatWindowMgr.LOG_STATUS, "拉取列表已风控"));
-                    XpBroadcast.sendRisk(mContext, XpReceiver.RISK_AWEME_LIST_MILD);
-//                        }
+                if (++parseErrCnt > 4) {
+                    // 重启后连续5次解析错误，严重风控
+                    if (runCnt == 5) {
+                        stopMonitor();
+                        XpBroadcast.sendFloatWindowLog(mContext, JSONObjectPack.getJsonObject(FloatWindowMgr.LOG_STATUS, "拉取列表已风控，请切换设备后重试"));
+                        XpBroadcast.sendRisk(mContext, XpReceiver.RISK_AWEME_LIST_SEVERE);
+                    }
+                    // 普通连续5次解析错误，轻微风控
+                    else {
+                        XpBroadcast.sendFloatWindowLog(mContext, JSONObjectPack.getJsonObject(FloatWindowMgr.LOG_STATUS, "拉取列表已风控"));
+                        XpBroadcast.sendRisk(mContext, XpReceiver.RISK_AWEME_LIST_MILD);
+                    }
                 }
             } else {
                 parseErrCnt = 0;

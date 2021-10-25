@@ -14,4 +14,9 @@ public class ApiUrl {
         return domain + "/ttMicroapp/dyextra/updateDeviceInfoState.action";
     }
 
+    public static String getNewPhoneInfo(String domain) {
+        // return domain + "/ttMicroapp/dyextra/getAndroidInfo.action";
+        return "http://121.5.26.145:8088/phone/getAndroidInfo";
+    }
+
 }

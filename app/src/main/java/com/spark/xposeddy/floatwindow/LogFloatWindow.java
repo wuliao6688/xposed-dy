@@ -1,8 +1,6 @@
 package com.spark.xposeddy.floatwindow;
 
 import android.annotation.SuppressLint;
-import android.content.Context;
-import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
@@ -21,6 +19,8 @@ import android.widget.Toast;
 
 import com.alibaba.fastjson.JSON;
 import com.spark.xposeddy.R;
+import com.spark.xposeddy.xposed.phone.NewPhoneThread;
+import com.spark.xposeddy.xposed.phone.PhoneInfo;
 import com.spark.xposeddy.xposed.receiver.AppBroadcast;
 import com.spark.xposeddy.xposed.receiver.XpBroadcast;
 import com.spark.xposeddy.xposed.receiver.XpReceiver;
@@ -29,25 +29,21 @@ import com.spark.xposeddy.net.impl.ApiMgrFactory;
 import com.spark.xposeddy.persist.IPersist;
 import com.spark.xposeddy.persist.PersistKey;
 import com.spark.xposeddy.persist.impl.PersistFactory;
-import com.spark.xposeddy.util.FileUtil;
 import com.spark.xposeddy.util.LaunchUtil;
-import com.spark.xposeddy.util.ShellFileUtil;
 import com.spark.xposeddy.util.ShellUtil;
 import com.spark.xposeddy.util.TraceUtil;
-import com.spark.xposeddy.xposed.dy.HookDy;
 import com.spark.xposeddy.xposed.HookMain;
 import com.spark.xposeddy.xposed.phone.PhoneMgr;
 
 import org.json.JSONObject;
 
-import java.io.File;
-import java.util.List;
-
 import static com.spark.xposeddy.floatwindow.FloatWindowMgr.LOG_AWEME_COUNTS;
 import static com.spark.xposeddy.floatwindow.FloatWindowMgr.LOG_AWEME_TARGET;
 import static com.spark.xposeddy.floatwindow.FloatWindowMgr.LOG_COUNTS;
-import static com.spark.xposeddy.floatwindow.FloatWindowMgr.LOG_DY_DEVICE_ID;
+import static com.spark.xposeddy.floatwindow.FloatWindowMgr.LOG_NEW_PHONE;
 import static com.spark.xposeddy.floatwindow.FloatWindowMgr.LOG_LIVE_UPLOAD;
+import static com.spark.xposeddy.floatwindow.FloatWindowMgr.LOG_NEW_PHONE_RISK;
+import static com.spark.xposeddy.floatwindow.FloatWindowMgr.LOG_NEW_PHONE_TIME;
 import static com.spark.xposeddy.floatwindow.FloatWindowMgr.LOG_SAMPLE;
 import static com.spark.xposeddy.floatwindow.FloatWindowMgr.LOG_STATUS;
 import static com.spark.xposeddy.floatwindow.FloatWindowMgr.LOG_TARGET;
@@ -58,12 +54,14 @@ class LogFloatWindow extends AbsFloatWindow implements View.OnClickListener, Vie
     private LinearLayout mLayoutLog;
     private Switch mSwComment;
     private Switch mSwLive;
+    private Switch mSwAirPlane;
     private ImageView mImgClose;
     private Button mBtnStart;
     private Button mBtnStop;
     private Button mBtnNewPhone;
     private Button mBtnIP;
     private TextView mTxtDeviceNum;
+    private TextView mTxtRisk;
     private TextView mTxtStatus;
     private TextView mTxtTarget;
     private TextView mTxtAwemeTarget;
@@ -74,7 +72,6 @@ class LogFloatWindow extends AbsFloatWindow implements View.OnClickListener, Vie
     private TextView mTxtLiveUpload;
     private TextView mTxtDeviceIP;
     private TextView mTxtDyDeviceID;
-    private TextView mTxtDeviceInfo;
     private ProgressBar mProgressBar;
 
     private int x;
@@ -82,6 +79,7 @@ class LogFloatWindow extends AbsFloatWindow implements View.OnClickListener, Vie
     private IPersist mPersist;
     private Handler mHandler;
     private long updateCnt = 0, lastUpdateCnt = 0, errCnt = 0;
+    private long riskNewPhoneCnt = 0, timeNewPhoneCnt = 0; //风控一键新机计数，定时一键新机计数
     private Runnable mKeepAliveRunnable = new Runnable() {
         @Override
         public void run() {
@@ -141,6 +139,7 @@ class LogFloatWindow extends AbsFloatWindow implements View.OnClickListener, Vie
         });
         mSwComment = (Switch) getViewById(R.id.sw_comment);
         mSwLive = (Switch) getViewById(R.id.sw_live);
+        mSwAirPlane = (Switch) getViewById(R.id.sw_airplane);
         mImgClose = (ImageView) getViewById(R.id.img_close);
         mBtnStart = (Button) getViewById(R.id.btn_start);
         mBtnStop = (Button) getViewById(R.id.btn_stop);
@@ -148,6 +147,7 @@ class LogFloatWindow extends AbsFloatWindow implements View.OnClickListener, Vie
         mBtnIP = (Button) getViewById(R.id.btn_ip);
 
         mTxtDeviceNum = (TextView) getViewById(R.id.txt_device_num);
+        mTxtRisk = (TextView) getViewById(R.id.txt_risk);
         mTxtStatus = (TextView) getViewById(R.id.txt_status);
         mTxtTarget = (TextView) getViewById(R.id.txt_target);
         mTxtAwemeTarget = (TextView) getViewById(R.id.txt_aweme_target);
@@ -158,13 +158,13 @@ class LogFloatWindow extends AbsFloatWindow implements View.OnClickListener, Vie
         mTxtLiveUpload = (TextView) getViewById(R.id.txt_live_upload);
         mTxtDeviceIP = (TextView) getViewById(R.id.txt_device_ip);
         mTxtDyDeviceID = (TextView) getViewById(R.id.txt_dy_device_id);
-        mTxtDeviceInfo = (TextView) getViewById(R.id.txt_device_info);
         mProgressBar = (ProgressBar) getViewById(R.id.progress);
 
         mSwComment.setOnTouchListener(this);  // 用来拦截onCheck的事件
         mSwLive.setOnTouchListener(this);
         mSwComment.setOnCheckedChangeListener(this);
         mSwLive.setOnCheckedChangeListener(this);
+        mSwAirPlane.setOnCheckedChangeListener(this);
         mImgClose.setOnClickListener(this);
         mBtnStart.setOnClickListener(this);
         mBtnStop.setOnClickListener(this);
@@ -174,6 +174,7 @@ class LogFloatWindow extends AbsFloatWindow implements View.OnClickListener, Vie
         mPersist = PersistFactory.getInstance(mContext);
         mHandler = new Handler(Looper.getMainLooper());
         mHandler.postDelayed(mKeepAliveRunnable, 10000);
+        mSwAirPlane.setChecked((Boolean) mPersist.readData(PersistKey.AUTO_AIRPLANE_STATUS, false));
     }
 
     @Override
@@ -195,7 +196,15 @@ class LogFloatWindow extends AbsFloatWindow implements View.OnClickListener, Vie
             case R.id.btn_new_phone:
                 mSwComment.setChecked(false);
                 mSwLive.setChecked(false);
-                new NewPhoneThread(mContext, mPersist).start();
+
+                mProgressBar.setVisibility(View.VISIBLE);
+                mBtnNewPhone.setEnabled(false);
+                new NewPhoneThread(mContext, HookMain.PACKAGE_ID_NORM, mPersist, () -> {
+                    mProgressBar.setVisibility(View.GONE);
+                    mBtnNewPhone.setEnabled(true);
+                    updateDeviceId();
+                    updateIp();
+                }).start();
                 break;
             case R.id.btn_ip:
                 updateIp();
@@ -231,11 +240,13 @@ class LogFloatWindow extends AbsFloatWindow implements View.OnClickListener, Vie
                 mTxtSample.setText("0");
                 mTxtCommentUpload.setText("0");
             }
-        } else {
+        } else if (resId == R.id.sw_live) {
             AppBroadcast.sendLiveMonitor(mContext, isChecked);
             if (isChecked) {
                 mTxtLiveUpload.setText("0");
             }
+        } else if (resId == R.id.sw_airplane) {
+            mPersist.writeData(PersistKey.AUTO_AIRPLANE_STATUS, isChecked);
         }
     }
 
@@ -243,8 +254,7 @@ class LogFloatWindow extends AbsFloatWindow implements View.OnClickListener, Vie
     protected void showWindow() {
         super.showWindow();
         mTxtDeviceNum.setText((String) mPersist.readData(PersistKey.DEVICE_ID, ""));
-        mTxtDeviceInfo.setText((String) mPersist.readData(PersistKey.PHONE_INFO, ""));
-        mTxtDyDeviceID.setText((String) mPersist.readData(PersistKey.DY_DEVICE_ID, ""));
+        updateDeviceId();
         updateIp();
     }
 
@@ -268,9 +278,16 @@ class LogFloatWindow extends AbsFloatWindow implements View.OnClickListener, Vie
             mTxtCommentUpload.setText(data.optString(LOG_COMMENT_UPLOAD));
         } else if (data.has(LOG_LIVE_UPLOAD)) {
             mTxtLiveUpload.setText(data.optString(LOG_LIVE_UPLOAD));
-        } else if (data.has(LOG_DY_DEVICE_ID)) {
-            mPersist.writeData(PersistKey.DY_DEVICE_ID, data.optString(LOG_DY_DEVICE_ID));
-            mTxtDyDeviceID.setText(data.optString(LOG_DY_DEVICE_ID));
+        } else if (data.has(LOG_NEW_PHONE)) {
+            updateDeviceId();
+            updateIp();
+            String type = data.optString(LOG_NEW_PHONE);
+            if (LOG_NEW_PHONE_RISK.equals(type)) {
+                riskNewPhoneCnt++;
+            } else if (LOG_NEW_PHONE_TIME.equals(type)) {
+                timeNewPhoneCnt++;
+            }
+            mTxtRisk.setText(riskNewPhoneCnt + " / " + timeNewPhoneCnt);
         }
     }
 
@@ -288,67 +305,16 @@ class LogFloatWindow extends AbsFloatWindow implements View.OnClickListener, Vie
         });
     }
 
-    class NewPhoneThread extends Thread {
-        private Context context;
-        private String packName;
-        private IPersist persist;
-
-        public NewPhoneThread(Context context, IPersist persist) {
-            super();
-            this.context = context;
-            this.persist = persist;
-            this.packName = HookMain.PACKAGE_ID_NORM;
-            mProgressBar.setVisibility(View.VISIBLE);
-            mBtnNewPhone.setEnabled(false);
+    private void updateDeviceId() {
+        String info = (String) mPersist.readData(PersistKey.PHONE_INFO, "");
+        if (!TextUtils.isEmpty(info)) {
+            TraceUtil.e("cache phoneInfo = " + info);
+            PhoneInfo cacheInfo = JSON.parseObject(info, PhoneInfo.class);
+            mTxtDyDeviceID.setText(cacheInfo.getAndroidId());
+        } else {
+            PhoneInfo localInfo = PhoneMgr.getLocalPhoneInfo(mContext);
+            TraceUtil.e("local phoneInfo = " + JSON.toJSONString(localInfo));
+            mTxtDyDeviceID.setText(localInfo.getAndroidId());
         }
-
-        @Override
-        public void run() {
-            super.run();
-            persist.writeData(PersistKey.PHONE_INFO, JSON.toJSONString(PhoneMgr.newPhoneInfo(mContext)));
-
-            TraceUtil.e("exitApp start tick: " + System.currentTimeMillis() / 1000);
-            ShellUtil.exitApp(packName);
-            TraceUtil.e("exitApp end tick: " + System.currentTimeMillis() / 1000);
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            TraceUtil.e("clearAppData start tick: " + System.currentTimeMillis() / 1000);
-            clearAppData(packName);
-            TraceUtil.e("clearAppData end tick: " + System.currentTimeMillis() / 1000);
-
-            ShellUtil.exitApp(packName);
-
-            mHandler.post(() -> {
-                mProgressBar.setVisibility(View.GONE);
-                mBtnNewPhone.setEnabled(true);
-                mTxtDeviceInfo.setText((String) mPersist.readData(PersistKey.PHONE_INFO, ""));
-            });
-        }
-
-        private boolean clearAppData(String packageName) {
-            String baseInner = "/data/user/0/" + packageName + "/";
-            String baseExternal = "/storage/emulated/0/Android/data/" + packageName + "/";
-            ShellFileUtil.deleteFile(new File(baseExternal));
-
-            // 删除com.snssdk.api
-            String snssdkPath = baseExternal.replace(packageName, "com.snssdk.api");
-            FileUtil.deleteFile(new File(snssdkPath));
-
-            File baseInnerFile = new File(baseInner);
-            if (ShellFileUtil.exists(baseInnerFile)) {
-                List<File> fileList = ShellFileUtil.listFiles(new File(baseInner));
-                for (File file : fileList) {
-                    if (!file.getPath().contains("lib ->")) {
-                        ShellFileUtil.deleteFile(file);
-                    }
-                }
-            }
-
-            return true;
-        }
-
     }
 }

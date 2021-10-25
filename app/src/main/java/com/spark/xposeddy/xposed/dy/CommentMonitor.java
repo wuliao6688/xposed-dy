@@ -55,7 +55,10 @@ public class CommentMonitor extends Thread {
     private int videoCount;
     private int commentPage;
     private int sampleDiff;
-    private int intervalTime;
+    private int commentThreadNum;
+    private int commentSmallInterval;
+    private int commentLargeInterval;
+    private int newPhoneInterval;
     private String sampleAccounts; // 采集达人列表
     private String sampleVideos; // 采集视频列表
 
@@ -79,10 +82,13 @@ public class CommentMonitor extends Thread {
         this.commentPage = Integer.parseInt(PropertyProvider.readData(context, PersistKey.COMMENT_PAGE));
         this.videoCount = Integer.parseInt(PropertyProvider.readData(context, PersistKey.VIDEO_COUNT));
         this.sampleDiff = Integer.parseInt(PropertyProvider.readData(context, PersistKey.SAMPLE_DIFF));
-        this.intervalTime = Integer.parseInt(PropertyProvider.readData(context, PersistKey.INTERVAL_TIME));
+        this.commentThreadNum = Integer.parseInt(PropertyProvider.readData(context, PersistKey.COMMENT_THREAD_NUM));
+        this.commentSmallInterval = Integer.parseInt(PropertyProvider.readData(context, PersistKey.COMMENT_SMALL_INTERVAL));
+        this.commentLargeInterval = Integer.parseInt(PropertyProvider.readData(context, PersistKey.COMMENT_LARGE_INTERVAL));
+        this.newPhoneInterval = Integer.parseInt(PropertyProvider.readData(context, PersistKey.NEW_PHONE_INTERVAL));
         this.sampleAccounts = PropertyProvider.readData(context, PersistKey.SAMPLE_ACCOUNTS);
         this.sampleVideos = PropertyProvider.readData(context, PersistKey.SAMPLE_VIDEOS);
-        TraceUtil.e("CommentMonitor param: commentPage = " + commentPage + ", videoCount = " + videoCount + ", sampleDiff = " + sampleDiff + ", intervalTime = " + intervalTime);
+        TraceUtil.e("CommentMonitor param: commentPage = " + commentPage + ", videoCount = " + videoCount + ", sampleDiff = " + sampleDiff + ", intervalTime = " + commentLargeInterval);
         TraceUtil.e("CommentMonitor param: sampleAccounts = " + sampleAccounts + ", sampleVideos = " + sampleVideos);
 
         this.mContext = context;
@@ -119,7 +125,11 @@ public class CommentMonitor extends Thread {
                 }
             }
         };
-        this.executor = new ThreadPoolExecutor(5, 5, 60L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
+        if (this.commentThreadNum != 0) {
+            this.executor = new ThreadPoolExecutor(this.commentThreadNum, this.commentThreadNum, 60L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
+        } else {
+            this.executor = new ThreadPoolExecutor(5, 5, 60L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
+        }
     }
 
     public void startMonitor() {
@@ -138,6 +148,7 @@ public class CommentMonitor extends Thread {
         super.run();
 
         long runCnt = 0; // 运行次数
+        long runStartTick = System.currentTimeMillis(); // 运行的开始时间
         Set<String> videoSet = new LinkedHashSet<>(); // 需要采集的视频
         Set<String> uidSet = new LinkedHashSet<>(); // 需要采集的达人
         List<Profile> profileList = new ArrayList<>(); // 需要采集达人的信息缓存
@@ -171,20 +182,11 @@ public class CommentMonitor extends Thread {
                     String videos = map.get("videos");
                     this.sampleAccounts = uids;
                     this.sampleVideos = videos;
-                    XpBroadcast.sendDeviceTask(mContext, this.sampleAccounts, this.sampleVideos);
 
                     // 更新profile缓存
-                    if (!TextUtils.isEmpty(sampleAccounts)) {
-                        uidSet.clear();
-                        uidSet.addAll(Arrays.asList(sampleAccounts.split(";")));
-
-                        profileList = getProfileByUser(uidSet);
-                        if (isRunning && profileList.size() > 0) {
-                            String profileListJson = JSON.toJSONString(profileList);
-                            PropertyProvider.writeData(mContext, PersistKey.CACHE_PROFILE, profileListJson);
-                            PropertyProvider.writeData(mContext, PersistKey.CACHE_AWEME, "");
-                        }
-                    }
+                    XpBroadcast.sendDeviceTask(mContext, this.sampleAccounts, this.sampleVideos);
+                    PropertyProvider.writeData(mContext, PersistKey.CACHE_PROFILE, "");
+                    PropertyProvider.writeData(mContext, PersistKey.CACHE_AWEME, "");
                 }
 
                 // 当没有profile缓存时，把达人列表转换profile列表，并更新profile缓存
@@ -289,6 +291,14 @@ public class CommentMonitor extends Thread {
                                         mHandler.sendMessage(msg);
                                     }
                                 }
+                                // 评论采集与评论采集之间的间隔
+                                try {
+                                    if (commentSmallInterval > 0) {
+                                        Thread.sleep(commentSmallInterval);
+                                    }
+                                } catch (InterruptedException e) {
+                                    e.printStackTrace();
+                                }
                             }
                         });
                     }
@@ -308,11 +318,19 @@ public class CommentMonitor extends Thread {
 
                 // 风控处理
                 if (isRunning) {
-                    riskHandle(commentSampleCnt.get());
+                    riskHandle(commentSampleCnt.get(), runCnt);
+                }
+
+                // 一键新机周期处理
+                long curTick = System.currentTimeMillis();
+                long diff = (curTick - runStartTick) / 1000;
+                TraceUtil.e("new phone interval = " + newPhoneInterval + ", diff = " + diff);
+                if (diff > newPhoneInterval) {
+                    XpBroadcast.sendNewPhoneTimeCmd(mContext);
                 }
 
                 // 新任务间隔时间
-                Thread.sleep(this.intervalTime * 1000);
+                Thread.sleep(this.commentLargeInterval);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
@@ -499,9 +517,9 @@ public class CommentMonitor extends Thread {
             XpBroadcast.sendFloatWindowLog(mContext, JSONObjectPack.getJsonObject(FloatWindowMgr.LOG_TARGET, String.format("%d / %d", ++cnt, userList.size())));
             int code = res.getCode();
 
-            // 如果连续3次解析错误，接口风控
+            // 普通连续5次解析错误，轻微风控
             if (code == Result.ResultCode.PARSE_ERR) {
-                if (++parseErrCnt > 2) {
+                if (++parseErrCnt > 4) {
                     awemeList.clear();
                     return null;
                 }
@@ -608,13 +626,17 @@ public class CommentMonitor extends Thread {
      *
      * @param commentCnt
      */
-    private void riskHandle(long commentCnt) {
+    private void riskHandle(long commentCnt, long runCnt) {
         if (lastCommentCnt == commentCnt) {
-            stopMonitor();
-            XpBroadcast.sendFloatWindowLog(mContext, JSONObjectPack.getJsonObject(FloatWindowMgr.LOG_STATUS, "评论列表已风控"));
-            XpBroadcast.sendRisk(mContext, XpReceiver.RISK_COMMENT_LIST_MILD);
-        } else {
-
+            if (runCnt == 1) {
+                stopMonitor();
+                XpBroadcast.sendFloatWindowLog(mContext, JSONObjectPack.getJsonObject(FloatWindowMgr.LOG_STATUS, "评论列表已风控，请切换设备后重试"));
+                XpBroadcast.sendRisk(mContext, XpReceiver.RISK_COMMENT_LIST_SEVERE);
+            } else {
+                stopMonitor();
+                XpBroadcast.sendFloatWindowLog(mContext, JSONObjectPack.getJsonObject(FloatWindowMgr.LOG_STATUS, "评论列表已风控"));
+                XpBroadcast.sendRisk(mContext, XpReceiver.RISK_COMMENT_LIST_MILD);
+            }
         }
         TraceUtil.e("riskHandle commentList: lastCommentCnt = " + lastCommentCnt + ", commentCnt = " + commentCnt);
         lastCommentCnt = commentCnt;

@@ -14,6 +14,8 @@ public interface IApiMgr {
 
     boolean updateDeviceTaskState(String deviceNum, @NonNull Callback<String> callback);
 
+    boolean getNewPhoneInfo(String deviceNum, @NonNull Callback<String> callback);
+
     boolean getIP(@NonNull Callback<String> callback);
 
 }

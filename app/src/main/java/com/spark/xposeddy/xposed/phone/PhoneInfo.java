@@ -1,5 +1,23 @@
 package com.spark.xposeddy.xposed.phone;
 
+/**
+ * androidId：16位16进制字符，522c0e2aa3c8eff6
+ * getDeviceId：IMEI 15位数字，86开头，865166029262592
+ * getMacAddress：12位16进制字符，00:db:36:9a:56:81
+ * getSubscriberId：IMSI 15位数字，460006753440678
+ * serial：硬件序列号，位数没有具体限制 建议8-16位字符，00108d52
+ * getBSSID：路由器wifi mac地址，12位16进制字符，00:AA:81:9a:db:56
+ * scanResultsBSSID：路由器wifi mac地址，12位16进制字符，00:AA:81:9a:db:56
+ * getSimSerialNumber：sim卡序列号，20位数字，8986开头，89860012261199491919
+ * getSSID：wifi名，A3681
+ * getExtraInfo：wifi名，A3681
+ * scanResultsSSID：wifi名，A3681
+ * board：主板，SM-N9760
+ * brand：系统定制商，samsung
+ * manufacturer：硬件制造商，samsung
+ * model：版本，SM-N9760
+ * product：手机产品名，SM-N9760
+ */
 public class PhoneInfo {
     private String density;
     private String densityDpi;

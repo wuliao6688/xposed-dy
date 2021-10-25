@@ -49,7 +49,10 @@ public class ShellFileUtil {
 
     public static void copyFile(File file, File dir) {
         String name = file.getName();
-        String targetFile = dir.getAbsolutePath() + "/" + name;
+        String targetFile = dir.getAbsolutePath();
+        if (dir.isDirectory()) {
+            targetFile = dir.getAbsolutePath() + "/" + name;
+        }
 
         if (exists(file)) {
             TraceUtil.d(name + " 新文件存在！");

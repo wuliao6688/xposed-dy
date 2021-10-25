@@ -30,11 +30,15 @@ import com.spark.xposeddy.persist.impl.PersistFactory;
 import com.spark.xposeddy.component.ProgressUtil;
 import com.spark.xposeddy.util.ShellRootUtil;
 import com.spark.xposeddy.util.TraceUtil;
+import com.spark.xposeddy.xposed.HookMain;
+import com.spark.xposeddy.xposed.phone.HookPhone;
+import com.spark.xposeddy.xposed.receiver.TestReceiver;
 import com.spark.xposeddy.xposed.receiver.XpReceiver;
-import com.spark.xposeddy.xposed.phone.PhoneMgr;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+
+import java.io.File;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 
@@ -44,9 +48,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private EditText mEditCommentPage;
     private EditText mEditVideoCount;
     private EditText mEditSampleDiff;
-    private EditText mEditIntervalTime;
+    private EditText mEditCommentThreadNum;
+    private EditText mEditCommentSmallInterval;
+    private EditText mEditCommentLargeInterval;
     private EditText mEditAwemeSmallInterval;
     private EditText mEditAwemeLargeInterval;
+    private EditText mEditNewPhoneInterval;
     private TextView mTvSampleAccounts;
     private TextView mTvSampleVideos;
     private Button mBtnSave;
@@ -59,8 +66,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mPersist = PersistFactory.getInstance(this);
-        if (TextUtils.isEmpty((String) mPersist.readData(PersistKey.PHONE_INFO, ""))) {
-            mPersist.writeData(PersistKey.PHONE_INFO, JSON.toJSONString(PhoneMgr.getPhoneInfo(mContext)));
+        if (TextUtils.isEmpty((String) mPersist.readData(PersistKey.COMMENT_PAGE, ""))) {
+            mPersist.writeData(PersistKey.COMMENT_PAGE, "1");
+            mPersist.writeData(PersistKey.VIDEO_COUNT, "5");
+            mPersist.writeData(PersistKey.SAMPLE_DIFF, "300");
+            mPersist.writeData(PersistKey.COMMENT_THREAD_NUM, "5");
+            mPersist.writeData(PersistKey.COMMENT_SMALL_INTERVAL, "1000");
+            mPersist.writeData(PersistKey.COMMENT_LARGE_INTERVAL, "5000");
+            mPersist.writeData(PersistKey.AWEME_SMALL_INTERVAL, "1000");
+            mPersist.writeData(PersistKey.AWEME_LARGE_INTERVAL, "10000");
+            mPersist.writeData(PersistKey.NEW_PHONE_INTERVAL, "600");
         }
         if (TextUtils.isEmpty((String) mPersist.readData(PersistKey.SAMPLE_ACCOUNTS, ""))) {
             mPersist.writeData(PersistKey.SAMPLE_ACCOUNTS, "94448819751;94766512160;1041964956135549;87755879771;1587337261757357;88090808523;59118017879;2862721033306827;75121210472;60701509911");
@@ -73,8 +88,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         if (FloatWindowMgr.requestFloatWindowPermission(mContext)) {
             FloatWindowMgr.getSingleInstance(mContext).showMenu();
         }
+        if (ShellRootUtil.requestRootPermission(mContext)) {
+            HookPhone.injectLibrary(mContext);
+        }
         mApi = ApiMgrFactory.getInstance(this);
         XpReceiver.registerReceiver(mContext);
+        TestReceiver.registerReceiver(mContext);
         registerReceiver();
     }
 
@@ -99,18 +118,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     @Override
     public void onClick(View v) {
         int resId = v.getId();
-        if (ShellRootUtil.isRoot()) {
-            if (!ShellRootUtil.isRootAuth()) {
-                Toast.makeText(mContext, "APP需要root权限，请授权root权限！", Toast.LENGTH_SHORT).show();
-                return;
-            }
-        } else {
-            Toast.makeText(mContext, "APP需要root权限，请root手机！", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
         if (resId == R.id.btn_save) {
-            saveParam();
+            if (ShellRootUtil.requestRootPermission(mContext)) {
+                HookPhone.injectLibrary(mContext);
+                saveParam();
+            }
         }
     }
 
@@ -129,9 +141,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mEditCommentPage = findViewById(R.id.edit_comment_page);
         mEditVideoCount = findViewById(R.id.edit_video_count);
         mEditSampleDiff = findViewById(R.id.edit_sample_diff);
-        mEditIntervalTime = findViewById(R.id.edit_interval_time);
+        mEditCommentThreadNum = findViewById(R.id.edit_comment_thread_num);
+        mEditCommentSmallInterval = findViewById(R.id.edit_small_interval_time);
+        mEditCommentLargeInterval = findViewById(R.id.edit_large_interval_time);
         mEditAwemeSmallInterval = findViewById(R.id.edit_aweme_small_interval);
         mEditAwemeLargeInterval = findViewById(R.id.edit_aweme_large_interval);
+        mEditNewPhoneInterval = findViewById(R.id.edit_new_phone_interval);
         mTvSampleAccounts = findViewById(R.id.tv_sample_account);
         mTvSampleVideos = findViewById(R.id.tv_sample_video);
 
@@ -141,12 +156,15 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mEditDomain.setText((String) mPersist.readData(PersistKey.DOMAIN, ""));
         mEditDevice.setText((String) mPersist.readData(PersistKey.DEVICE_ID, ""));
         mEditType.setText((String) mPersist.readData(PersistKey.TYPE_ID, ""));
-        mEditCommentPage.setText((String) mPersist.readData(PersistKey.COMMENT_PAGE, "1"));
-        mEditVideoCount.setText((String) mPersist.readData(PersistKey.VIDEO_COUNT, "5"));
-        mEditSampleDiff.setText((String) mPersist.readData(PersistKey.SAMPLE_DIFF, "300"));
-        mEditIntervalTime.setText((String) mPersist.readData(PersistKey.INTERVAL_TIME, "5"));
-        mEditAwemeSmallInterval.setText((String) mPersist.readData(PersistKey.AWEME_SMALL_INTERVAL_CNT, "1000"));
-        mEditAwemeLargeInterval.setText((String) mPersist.readData(PersistKey.AWEME_LARGE_INTERVAL_CNT, "10000"));
+        mEditCommentPage.setText((String) mPersist.readData(PersistKey.COMMENT_PAGE, ""));
+        mEditVideoCount.setText((String) mPersist.readData(PersistKey.VIDEO_COUNT, ""));
+        mEditSampleDiff.setText((String) mPersist.readData(PersistKey.SAMPLE_DIFF, ""));
+        mEditCommentThreadNum.setText((String) mPersist.readData(PersistKey.COMMENT_THREAD_NUM, ""));
+        mEditCommentSmallInterval.setText((String) mPersist.readData(PersistKey.COMMENT_SMALL_INTERVAL, ""));
+        mEditCommentLargeInterval.setText((String) mPersist.readData(PersistKey.COMMENT_LARGE_INTERVAL, ""));
+        mEditAwemeSmallInterval.setText((String) mPersist.readData(PersistKey.AWEME_SMALL_INTERVAL, ""));
+        mEditAwemeLargeInterval.setText((String) mPersist.readData(PersistKey.AWEME_LARGE_INTERVAL, ""));
+        mEditNewPhoneInterval.setText((String) mPersist.readData(PersistKey.NEW_PHONE_INTERVAL, ""));
         mTvSampleAccounts.setText((String) mPersist.readData(PersistKey.SAMPLE_ACCOUNTS, ""));
         mTvSampleVideos.setText((String) mPersist.readData(PersistKey.SAMPLE_VIDEOS, ""));
 
@@ -166,9 +184,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         String commentPage = mEditCommentPage.getText().toString().trim();
         String videoCount = mEditVideoCount.getText().toString().trim();
         String sampleDiff = mEditSampleDiff.getText().toString().trim();
-        String intervalTime = mEditIntervalTime.getText().toString().trim();
+        String commentThreadNum = mEditCommentThreadNum.getText().toString().trim();
+        String smallIntervalTime = mEditCommentSmallInterval.getText().toString().trim();
+        String largeIntervalTime = mEditCommentLargeInterval.getText().toString().trim();
         String awemeSmallInterval = mEditAwemeSmallInterval.getText().toString().trim();
         String awemeLargeInterval = mEditAwemeLargeInterval.getText().toString().trim();
+        String newPhoneInterval = mEditNewPhoneInterval.getText().toString().trim();
 //        if (TextUtils.isEmpty(domain)) {
 //            Toast.makeText(mContext, "服务器地址不能为空", Toast.LENGTH_SHORT).show();
 //            return;
@@ -188,40 +209,58 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 //        mPersist.writeData(PersistKey.TYPE_ID, type);
 
         if (TextUtils.isEmpty(commentPage)) {
-            Toast.makeText(mContext, "评论前N页不能为空", Toast.LENGTH_SHORT).show();
+            Toast.makeText(mContext, "采集评论前N页不能为空", Toast.LENGTH_SHORT).show();
             return;
         }
         mPersist.writeData(PersistKey.COMMENT_PAGE, commentPage);
 
         if (TextUtils.isEmpty(videoCount)) {
-            Toast.makeText(mContext, "达人前N条不能为空", Toast.LENGTH_SHORT).show();
+            Toast.makeText(mContext, "采集达人前N条不能为空", Toast.LENGTH_SHORT).show();
             return;
         }
         mPersist.writeData(PersistKey.VIDEO_COUNT, videoCount);
 
         if (TextUtils.isEmpty(sampleDiff)) {
-            Toast.makeText(mContext, "采集时间差不能为空", Toast.LENGTH_SHORT).show();
+            Toast.makeText(mContext, "采集最近N秒不能为空", Toast.LENGTH_SHORT).show();
             return;
         }
         mPersist.writeData(PersistKey.SAMPLE_DIFF, sampleDiff);
 
-        if (TextUtils.isEmpty(intervalTime)) {
-            Toast.makeText(mContext, "执行间隔不能为空", Toast.LENGTH_SHORT).show();
+        if (TextUtils.isEmpty(commentThreadNum)) {
+            Toast.makeText(mContext, "评论线程数不能为空", Toast.LENGTH_SHORT).show();
             return;
         }
-        mPersist.writeData(PersistKey.INTERVAL_TIME, intervalTime);
+        mPersist.writeData(PersistKey.COMMENT_THREAD_NUM, commentThreadNum);
+
+        if (TextUtils.isEmpty(smallIntervalTime)) {
+            Toast.makeText(mContext, "评论小间隔不能为空", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        mPersist.writeData(PersistKey.COMMENT_SMALL_INTERVAL, smallIntervalTime);
+
+        if (TextUtils.isEmpty(largeIntervalTime)) {
+            Toast.makeText(mContext, "评论大间隔不能为空", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        mPersist.writeData(PersistKey.COMMENT_LARGE_INTERVAL, largeIntervalTime);
 
         if (TextUtils.isEmpty(awemeSmallInterval)) {
-            Toast.makeText(mContext, "拉取小间隔不能为空", Toast.LENGTH_SHORT).show();
+            Toast.makeText(mContext, "视频小间隔不能为空", Toast.LENGTH_SHORT).show();
             return;
         }
-        mPersist.writeData(PersistKey.AWEME_SMALL_INTERVAL_CNT, awemeSmallInterval);
+        mPersist.writeData(PersistKey.AWEME_SMALL_INTERVAL, awemeSmallInterval);
 
         if (TextUtils.isEmpty(awemeLargeInterval)) {
-            Toast.makeText(mContext, "拉取大间隔不能为空", Toast.LENGTH_SHORT).show();
+            Toast.makeText(mContext, "视频大间隔不能为空", Toast.LENGTH_SHORT).show();
             return;
         }
-        mPersist.writeData(PersistKey.AWEME_LARGE_INTERVAL_CNT, awemeLargeInterval);
+        mPersist.writeData(PersistKey.AWEME_LARGE_INTERVAL, awemeLargeInterval);
+
+        if (TextUtils.isEmpty(newPhoneInterval)) {
+            Toast.makeText(mContext, "一键新机间隔不能为空", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        mPersist.writeData(PersistKey.NEW_PHONE_INTERVAL, newPhoneInterval);
 
         getDeviceTask(device);
     }
@@ -238,6 +277,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     if (obj.has("info")) {
                         JSONObject info = obj.optJSONObject("info");
                         String dyIds = info.optString("dy_ids");
+                        // String dyIds = "";
                         String videoUrls = info.optString("video_urls");
                         mPersist.writeData(PersistKey.SAMPLE_ACCOUNTS, dyIds);
                         mPersist.writeData(PersistKey.SAMPLE_VIDEOS, videoUrls);
@@ -258,6 +298,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 ProgressUtil.dismissProgressHUD();
                 TraceUtil.e("getDeviceTask fail, error = " + error);
                 Toast.makeText(mContext, error, Toast.LENGTH_SHORT).show();
+                mPersist.writeData(PersistKey.SAMPLE_ACCOUNTS, "");
+                mPersist.writeData(PersistKey.SAMPLE_VIDEOS, "");
+                mTvSampleAccounts.setText("");
+                mTvSampleVideos.setText("");
             }
         });
     }
@@ -282,6 +326,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             String action = intent.getAction();
             if (XpReceiver.RECEIVER_NEW_TASK_ACTION.equals(action)) {
                 String sampleAccounts = intent.getStringExtra("sampleAccounts");
+                // String sampleAccounts = "";
                 String sampleVideos = intent.getStringExtra("sampleVideos");
                 mPersist.writeData(PersistKey.SAMPLE_ACCOUNTS, sampleAccounts);
                 mPersist.writeData(PersistKey.SAMPLE_VIDEOS, sampleVideos);

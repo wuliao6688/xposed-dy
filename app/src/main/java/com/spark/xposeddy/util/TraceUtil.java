@@ -17,7 +17,7 @@ import de.robv.android.xposed.XposedBridge;
 
 public class TraceUtil {
     private static boolean isDebug = true;
-    private static boolean isWriter = true;
+    private static boolean isWriter = false;
     private final static int LOG_MAX_LEN = 3000;
     private final static String MATCH = "%s->%s->%d";
     private final static String CONNECTOR = ":<--->:";
